@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Market Dashboard</title>
+<style>
+:root {
+  --bg:      #0d1117;
+  --surface: #161b22;
+  --border:  #30363d;
+  --text:    #e6edf3;
+  --muted:   #7d8590;
+  --dimmed:  #484f58;
+  --green:   #3fb950;
+  --red:     #f85149;
+  --blue:    #58a6ff;
+  --cat-bg:  #1c2128;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 12.5px;
+  min-width: 1200px;
+}
+
+/* ── Header ── */
+header {
+  padding: 14px 20px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+header h1 { font-size: 16px; font-weight: 700; letter-spacing: 0.05em; }
+.header-meta { color: var(--muted); font-size: 11px; margin-top: 2px; }
+.header-right { display: flex; align-items: center; gap: 16px; }
+.countdown { color: var(--muted); font-size: 11px; }
+.btn-refresh {
+  background: #21262d;
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 5px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  text-decoration: none;
+  font-family: inherit;
+}
+.btn-refresh:hover { background: var(--border); }
+.date-input {
+  background: #21262d;
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.date-input:focus { outline: 1px solid var(--blue); }
+.historical-banner {
+  background: #2d2208;
+  border-bottom: 1px solid #5a3e00;
+  color: #e3a008;
+  font-size: 11px;
+  padding: 6px 20px;
+  text-align: center;
+  letter-spacing: 0.03em;
+}
+
+/* ── Table ── */
+.table-wrap { padding: 0 12px 32px; }
+table { width: 100%; border-collapse: collapse; }
+thead th {
+  background: var(--surface);
+  padding: 9px 10px;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--muted);
+  letter-spacing: 0.08em;
+  border-bottom: 2px solid var(--border);
+  white-space: nowrap;
+  text-align: right;
+  position: sticky;
+  top: 49px;
+  z-index: 9;
+}
+thead th:first-child { text-align: left; padding-left: 14px; }
+
+/* Category separator */
+tr.cat-row td {
+  background: var(--cat-bg);
+  color: var(--dimmed);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  padding: 5px 14px;
+  border-bottom: 1px solid var(--border);
+  border-top: 2px solid var(--border);
+}
+
+/* Data rows */
+tbody tr.data-row td {
+  padding: 7px 10px;
+  border-bottom: 1px solid rgba(48,54,61,0.4);
+  white-space: nowrap;
+  text-align: right;
+  vertical-align: middle;
+}
+tbody tr.data-row td:first-child {
+  text-align: left;
+  padding-left: 20px;
+  font-weight: 500;
+  color: var(--text);
+}
+tbody tr.data-row:hover td { background: rgba(22,27,34,0.9); }
+
+/* Colors */
+.pos { color: var(--green); }
+.neg { color: var(--red); }
+.na  { color: var(--dimmed); }
+.price-cell { font-weight: 600; color: #c9d1d9; }
+.suffix { font-size: 10px; color: var(--muted); margin-left: 1px; }
+
+/* 52W range bar */
+.range-wrap { display: flex; align-items: center; gap: 7px; justify-content: flex-end; }
+.range-val  { font-size: 10.5px; color: var(--muted); min-width: 48px; }
+.range-val.lo { text-align: right; }
+.range-val.hi { text-align: left; }
+.bar-outer {
+  width: 72px; height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  position: relative;
+  flex-shrink: 0;
+}
+.bar-dot {
+  position: absolute;
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--blue);
+  top: -1.5px;
+  transform: translateX(-50%);
+}
+
+/* Footnote */
+.footnote {
+  font-size: 10px;
+  color: var(--dimmed);
+  padding: 12px 20px 24px;
+  border-top: 1px solid var(--border);
+  line-height: 1.7;
+}
+.footnote b { color: var(--muted); }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>MARKET DASHBOARD</h1>
+    <div class="header-meta">As of {{ data.as_of }}&nbsp;&nbsp;|&nbsp;&nbsp;Last updated {{ data.generated_at }}</div>
+  </div>
+  <div class="header-right">
+    <form method="GET" action="/" style="display:flex;align-items:center;gap:8px;">
+      <label style="color:var(--muted);font-size:11px;">As of</label>
+      <input type="date" name="date" value="{{ data.as_of }}" max="{{ today }}" class="date-input">
+      <button type="submit" class="btn-refresh">Go</button>
+    </form>
+    <a href="/refresh?date={{ data.as_of }}" class="btn-refresh">&#8635; Refresh</a>
+  </div>
+</header>
+
+{% if data.as_of != today %}
+<div class="historical-banner">
+  &#9432; Showing historical data as of <b>{{ data.as_of }}</b> — prices and all metrics reflect that date.
+</div>
+{% endif %}
+
+<div class="table-wrap">
+<table>
+<thead>
+  <tr>
+    <th style="width:160px;min-width:140px">ASSET</th>
+    <th style="min-width:90px">PRICE</th>
+    <th style="min-width:85px">1D CHG</th>
+    <th style="min-width:72px">1D %</th>
+    <th style="min-width:72px">WTD %</th>
+    <th style="min-width:72px">MTD %</th>
+    <th style="min-width:72px">QTD %</th>
+    <th style="min-width:72px">YTD %</th>
+    <th style="min-width:72px">1Y</th>
+    <th style="min-width:72px">3Y</th>
+    <th style="min-width:72px">5Y</th>
+    <th style="min-width:72px">10Y</th>
+    <th style="min-width:200px">52W RANGE</th>
+  </tr>
+</thead>
+<tbody>
+
+{# ── Macros ── #}
+{% macro color_cls(val) %}{{ 'pos' if val is not none and val > 0 else 'neg' if val is not none and val < 0 else 'na' }}{% endmacro %}
+
+{% macro pct_cell(val) %}
+  {% if val is none %}<span class="na">—</span>
+  {% else %}<span class="{{ color_cls(val) }}">{{ "%+.2f"|format(val) }}<span class="suffix">%</span></span>
+  {% endif %}
+{% endmacro %}
+
+{% macro bps_cell(val) %}
+  {% if val is none %}<span class="na">—</span>
+  {% else %}<span class="{{ color_cls(val) }}">{{ "%+.0f"|format(val) }}<span class="suffix">bps</span></span>
+  {% endif %}
+{% endmacro %}
+
+{% macro range_bar(row) %}
+  {% if row.w52_lo is not none %}
+  <div class="range-wrap">
+    <span class="range-val lo">{{ row.w52_lo }}</span>
+    <div class="bar-outer">
+      <div class="bar-dot" style="left:{{ row.w52_pos }}%"></div>
+    </div>
+    <span class="range-val hi">{{ row.w52_hi }}</span>
+  </div>
+  {% else %}<span class="na">—</span>{% endif %}
+{% endmacro %}
+
+{% set ns = namespace(prev_cat='') %}
+{% for row in data.rows %}
+
+  {% if row.category != ns.prev_cat %}
+  {% set ns.prev_cat = row.category %}
+  <tr class="cat-row"><td colspan="13">{{ row.category }}</td></tr>
+  {% endif %}
+
+  <tr class="data-row">
+
+    {# Asset name #}
+    <td>{{ row.name }}</td>
+
+    {# Price #}
+    <td class="price-cell">
+      {{ row.price }}{% if row.is_yield %}<span class="suffix">%</span>{% endif %}
+    </td>
+
+    {# 1D Change (absolute) #}
+    {% if row.is_yield %}
+      <td>{{ bps_cell(row.change_1d) }}</td>
+    {% else %}
+      <td>
+        {% if row.change_1d is not none %}
+          <span class="{{ color_cls(row.change_1d) }}">{{ row.change_1d | fmt_chg }}</span>
+        {% else %}<span class="na">—</span>{% endif %}
+      </td>
+    {% endif %}
+
+    {# 1D % #}
+    {% if row.is_yield %}
+      <td><span class="na">—</span></td>
+    {% else %}
+      <td>{{ pct_cell(row.col_1d) }}</td>
+    {% endif %}
+
+    {# WTD / MTD / QTD / YTD #}
+    {% if row.is_yield %}
+      <td>{{ bps_cell(row.col_wtd) }}</td>
+      <td>{{ bps_cell(row.col_mtd) }}</td>
+      <td>{{ bps_cell(row.col_qtd) }}</td>
+      <td>{{ bps_cell(row.col_ytd) }}</td>
+    {% else %}
+      <td>{{ pct_cell(row.col_wtd) }}</td>
+      <td>{{ pct_cell(row.col_mtd) }}</td>
+      <td>{{ pct_cell(row.col_qtd) }}</td>
+      <td>{{ pct_cell(row.col_ytd) }}</td>
+    {% endif %}
+
+    {# 1Y / 3Y / 5Y / 10Y #}
+    {% if row.is_yield %}
+      <td>{{ bps_cell(row.ret_1y) }}</td>
+      <td>{{ bps_cell(row.ret_3y) }}</td>
+      <td>{{ bps_cell(row.ret_5y) }}</td>
+      <td>{{ bps_cell(row.ret_10y) }}</td>
+    {% else %}
+      <td>{{ pct_cell(row.ret_1y) }}</td>
+      <td>{{ pct_cell(row.ret_3y) }}</td>
+      <td>{{ pct_cell(row.ret_5y) }}</td>
+      <td>{{ pct_cell(row.ret_10y) }}</td>
+    {% endif %}
+
+    {# 52W Range #}
+    <td>{{ range_bar(row) }}</td>
+
+  </tr>
+{% endfor %}
+
+</tbody>
+</table>
+</div>
+
+<div class="footnote">
+  <b>Returns:</b>
+  Equity 1Y–10Y = cumulative total return via ETF proxies (SPY / QQQ / IWM / FEZ / EWJ / EWH / EWY / EWU) using adjusted close (dividends reinvested).
+  Short-term (WTD / MTD / QTD / YTD) use the actual index price.
+  VIX long-term returns shown as —.
+  <b>Rates:</b> all change columns in basis points (bps). US 2Y from FRED (DGS2); 10Y &amp; 30Y from Yahoo Finance (^TNX / ^TYX).
+  <b>Reference dates:</b>
+  WTD {{ data.refs.wtd }} &nbsp;·&nbsp;
+  MTD {{ data.refs.mtd }} &nbsp;·&nbsp;
+  QTD {{ data.refs.qtd }} &nbsp;·&nbsp;
+  YTD {{ data.refs.ytd }}
+</div>
+
+<script>
+</script>
+</body>
+</html>
