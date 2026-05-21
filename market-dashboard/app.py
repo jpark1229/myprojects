@@ -3,6 +3,7 @@ import time
 from datetime import datetime, date
 from flask import Flask, render_template, redirect, url_for, request
 from fetch_data import get_dashboard_data, get_vol_term_structure
+from commentary import generate as generate_commentary
 
 app = Flask(__name__)
 app.jinja_env.globals['enumerate'] = enumerate
@@ -59,7 +60,8 @@ def fmt_chg(val):
 def index():
     as_of = request.args.get("date", str(date.today()))
     data = get_data(as_of)
-    return render_template("index.html", data=data, today=str(date.today()))
+    commentary = generate_commentary(data)
+    return render_template("index.html", data=data, today=str(date.today()), commentary=commentary)
 
 
 @app.route("/refresh")
