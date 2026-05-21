@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VIX Term Structure</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+:root {
+  --bg:      #0d1117;
+  --surface: #161b22;
+  --border:  #30363d;
+  --text:    #e6edf3;
+  --muted:   #7d8590;
+  --dimmed:  #484f58;
+  --blue:    #58a6ff;
+  --green:   #3fb950;
+  --red:     #f85149;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 12.5px;
+  min-height: 100vh;
+}
+
+header {
+  padding: 14px 20px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+header h1 { font-size: 16px; font-weight: 700; letter-spacing: 0.05em; }
+.header-meta { color: var(--muted); font-size: 11px; margin-top: 2px; }
+.header-right { display: flex; align-items: center; gap: 12px; }
+
+.btn {
+  background: #21262d;
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 5px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  text-decoration: none;
+  font-family: inherit;
+}
+.btn:hover { background: var(--border); }
+.date-input {
+  background: #21262d;
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 12px;
+}
+
+nav {
+  padding: 8px 20px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  gap: 16px;
+  font-size: 11px;
+}
+nav a { color: var(--muted); text-decoration: none; }
+nav a:hover { color: var(--text); }
+nav a.active { color: var(--blue); border-bottom: 2px solid var(--blue); padding-bottom: 4px; }
+
+.content { padding: 28px 32px; max-width: 900px; margin: 0 auto; }
+
+.chart-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 24px;
+}
+.chart-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 4px;
+  letter-spacing: 0.05em;
+}
+.chart-subtitle {
+  font-size: 11px;
+  color: var(--muted);
+  margin-bottom: 20px;
+}
+
+/* Data table below chart */
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 24px;
+  font-size: 12px;
+}
+.data-table th {
+  text-align: right;
+  padding: 7px 14px;
+  color: var(--muted);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  border-bottom: 2px solid var(--border);
+}
+.data-table th:first-child { text-align: left; }
+.data-table td {
+  text-align: right;
+  padding: 7px 14px;
+  border-bottom: 1px solid rgba(48,54,61,0.4);
+}
+.data-table td:first-child { text-align: left; color: var(--muted); }
+.data-table tr:hover td { background: rgba(22,27,34,0.8); }
+.dot {
+  display: inline-block;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>VIX TERM STRUCTURE</h1>
+    <div class="header-meta">As of {{ data.as_of }}&nbsp;&nbsp;|&nbsp;&nbsp;Generated {{ data.generated_at }}</div>
+  </div>
+  <div class="header-right">
+    <form method="GET" action="/vol" style="display:flex;align-items:center;gap:8px;">
+      <label style="color:var(--muted);font-size:11px;">As of</label>
+      <input type="date" name="date" value="{{ data.as_of }}" max="{{ today }}" class="date-input">
+      <button type="submit" class="btn">Go</button>
+    </form>
+    <a href="/vol/refresh?date={{ data.as_of }}" class="btn">&#8635; Refresh</a>
+  </div>
+</header>
+
+<nav>
+  <a href="/?date={{ data.as_of }}">Dashboard</a>
+  <a href="/vol?date={{ data.as_of }}" class="active">VIX Term Structure</a>
+</nav>
+
+<div class="content">
+  <div class="chart-card">
+    <div class="chart-title">VIX TERM STRUCTURE</div>
+    <div class="chart-subtitle">Implied volatility across tenors — 9D · 1M · 3M · 6M · 1Y</div>
+    <canvas id="volChart" height="320"></canvas>
+
+    <!-- Data table -->
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>DATE</th>
+          {% for label in data.labels %}
+          <th>{{ label }}</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% set colors = ['#58a6ff', '#f0883e', '#7d8590'] %}
+        {% for i, s in enumerate(data.series) %}
+        <tr>
+          <td>
+            <span class="dot" style="background:{{ colors[i] }}"></span>
+            {{ s.actual_date }}
+            {% if loop.index == 1 %}<span style="color:var(--muted);font-size:10px;"> (as-of)</span>
+            {% elif loop.index == 2 %}<span style="color:var(--muted);font-size:10px;"> (-1W)</span>
+            {% else %}<span style="color:var(--muted);font-size:10px;"> (-1M)</span>
+            {% endif %}
+          </td>
+          {% for v in s['values'] %}
+          <td>{{ "%.2f"|format(v) if v is not none else "—" }}</td>
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+const labels = {{ data.labels | tojson }};
+const series = {{ data.series | tojson }};
+
+const palette = ['#58a6ff', '#f0883e', '#7d8590'];
+const labels_map = ['As-of (' + series[0].actual_date + ')',
+                    '-1W ('    + series[1].actual_date + ')',
+                    '-1M ('    + series[2].actual_date + ')'];
+const dashes = [[], [6,3], [2,4]];
+
+const datasets = series.map((s, i) => ({
+  label: labels_map[i],
+  data: s.values,
+  borderColor: palette[i],
+  backgroundColor: palette[i] + '22',
+  borderWidth: i === 0 ? 2.5 : 1.8,
+  pointRadius: 5,
+  pointHoverRadius: 7,
+  borderDash: dashes[i],
+  tension: 0.3,
+  fill: false,
+}));
+
+const ctx = document.getElementById('volChart').getContext('2d');
+new Chart(ctx, {
+  type: 'line',
+  data: { labels, datasets },
+  options: {
+    responsive: true,
+    interaction: { mode: 'index', intersect: false },
+    plugins: {
+      legend: {
+        labels: {
+          color: '#7d8590',
+          font: { family: 'Consolas, Monaco, monospace', size: 11 },
+          usePointStyle: true,
+          pointStyleWidth: 16,
+        }
+      },
+      tooltip: {
+        backgroundColor: '#161b22',
+        borderColor: '#30363d',
+        borderWidth: 1,
+        titleColor: '#e6edf3',
+        bodyColor: '#7d8590',
+        callbacks: {
+          label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y != null ? ctx.parsed.y.toFixed(2) : '—'}`
+        }
+      }
+    },
+    scales: {
+      x: {
+        ticks: { color: '#7d8590', font: { family: 'Consolas, Monaco, monospace', size: 11 } },
+        grid: { color: '#21262d' },
+      },
+      y: {
+        ticks: {
+          color: '#7d8590',
+          font: { family: 'Consolas, Monaco, monospace', size: 11 },
+          callback: v => v.toFixed(1)
+        },
+        grid: { color: '#21262d' },
+        title: {
+          display: true,
+          text: 'VIX Level',
+          color: '#484f58',
+          font: { family: 'Consolas, Monaco, monospace', size: 10 }
+        }
+      }
+    }
+  }
+});
+</script>
+</body>
+</html>

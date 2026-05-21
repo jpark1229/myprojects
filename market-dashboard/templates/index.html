@@ -179,6 +179,11 @@ tbody tr.data-row:hover td { background: rgba(22,27,34,0.9); }
   </div>
 </header>
 
+<nav style="padding:7px 20px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;gap:16px;font-size:11px;">
+  <a href="/?date={{ data.as_of }}" style="color:var(--blue);text-decoration:none;border-bottom:2px solid var(--blue);padding-bottom:3px;">Dashboard</a>
+  <a href="/vol?date={{ data.as_of }}" style="color:var(--muted);text-decoration:none;">VIX Term Structure</a>
+</nav>
+
 {% if data.as_of != today %}
 <div class="historical-banner">
   &#9432; Showing historical data as of <b>{{ data.as_of }}</b> — prices and all metrics reflect that date.

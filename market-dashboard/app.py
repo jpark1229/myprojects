@@ -2,9 +2,10 @@ import threading
 import time
 from datetime import datetime, date
 from flask import Flask, render_template, redirect, url_for, request
-from fetch_data import get_dashboard_data
+from fetch_data import get_dashboard_data, get_vol_term_structure
 
 app = Flask(__name__)
+app.jinja_env.globals['enumerate'] = enumerate
 
 _cache = {}   # {date_str: {"data": ..., "ts": float}}
 _lock = threading.Lock()
@@ -66,6 +67,39 @@ def refresh():
     as_of = request.args.get("date", str(date.today()))
     get_data(as_of, force=True)
     return redirect(url_for("index", date=as_of))
+
+
+_vol_cache = {}
+
+def get_vol_data(as_of_str=None, force=False):
+    if not as_of_str:
+        as_of_str = str(date.today())
+    with _lock:
+        cached = _vol_cache.get(as_of_str)
+        is_today = (as_of_str == str(date.today()))
+        stale = cached is None or (is_today and (time.time() - cached["ts"]) > CACHE_TTL)
+        if force or stale:
+            print(f"\n[{datetime.now().strftime('%H:%M:%S')}] Fetching vol term structure for {as_of_str}...")
+            _vol_cache[as_of_str] = {
+                "data": get_vol_term_structure(as_of=parse_date(as_of_str)),
+                "ts": time.time(),
+            }
+            print("Done.\n")
+        return _vol_cache[as_of_str]["data"]
+
+
+@app.route("/vol")
+def vol():
+    as_of = request.args.get("date", str(date.today()))
+    data = get_vol_data(as_of)
+    return render_template("vol.html", data=data, today=str(date.today()))
+
+
+@app.route("/vol/refresh")
+def vol_refresh():
+    as_of = request.args.get("date", str(date.today()))
+    get_vol_data(as_of, force=True)
+    return redirect(url_for("vol", date=as_of))
 
 
 if __name__ == "__main__":

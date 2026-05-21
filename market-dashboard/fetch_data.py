@@ -30,6 +30,15 @@ ASSETS = [
 
 START_DATE = "2013-01-01"
 
+VOL_TENORS = [
+    ("1D",  "^VIX1D"),
+    ("9D",  "^VIX9D"),
+    ("1M",  "^VIX"),
+    ("3M",  "^VIX3M"),
+    ("6M",  "^VIX6M"),
+    ("1Y",  "^VIX1Y"),
+]
+
 
 def strip_tz(s):
     if hasattr(s.index, "tz") and s.index.tz is not None:
@@ -272,4 +281,36 @@ def get_dashboard_data(as_of=None):
             "wtd": str(wtd), "mtd": str(mtd),
             "qtd": str(qtd), "ytd": str(ytd),
         },
+    }
+
+
+def get_vol_term_structure(as_of=None):
+    as_of = as_of or date.today()
+    w1 = as_of - timedelta(days=7)
+    m1 = as_of - timedelta(days=30)
+
+    tickers = [t for _, t in VOL_TENORS]
+    print("Fetching VIX term structure tickers (batch)...")
+    data = fetch_all_yf(tickers)
+
+    labels = [label for label, _ in VOL_TENORS]
+    dates = [as_of, w1, m1]
+
+    series = []
+    for d in dates:
+        values = []
+        for _, ticker in VOL_TENORS:
+            s = data.get(ticker)
+            v = closest_before(s, d) if s is not None else None
+            values.append(round(v, 2) if v is not None else None)
+        # Find the actual trading date used (from ^VIX as reference)
+        ref_s = data.get("^VIX")
+        actual_date = str(ref_s[ref_s.index <= pd.Timestamp(d)].index[-1].date()) if ref_s is not None else str(d)
+        series.append({"date": str(d), "actual_date": actual_date, "values": values})
+
+    return {
+        "as_of": str(as_of),
+        "labels": labels,
+        "series": series,
+        "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     }
